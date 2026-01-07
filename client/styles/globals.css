@@ -1,0 +1,8 @@
+body { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; padding: 20px; }
+.container { max-width: 700px; margin: auto; }
+.create { margin-bottom: 16px; }
+.create input { padding: 6px; margin-right: 8px; }
+ul { list-style: none; padding-left: 0; }
+li { padding: 8px 0; border-bottom: 1px solid #eee; }
+button { padding: 6px 10px; }
+.help { color: #666; font-size: 0.9rem; }
