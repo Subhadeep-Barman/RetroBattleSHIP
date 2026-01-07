@@ -1,9 +1,13 @@
 var express = require('express');
 var app = express();
 var http = require('http').Server(app);
-var io = require('socket.io')(http);
-var Entities = require('html-entities').AllHtmlEntities;
-var entities = new Entities();
+var io = require('socket.io')(http, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
+});
+var { encode } = require('html-entities');
 
 var BattleshipGame = require('./app/game.js');
 var GameStatus = require('./app/gameStatus.js');
@@ -48,13 +52,13 @@ io.on('connection', function(socket) {
       // Send message to opponent
       socket.broadcast.to('game' + users[socket.id].inGame.id).emit('chat', {
         name: 'Opponent',
-        message: entities.encode(msg),
+        message: encode(msg),
       });
 
       // Send message to self
       io.to(socket.id).emit('chat', {
         name: 'Me',
-        message: entities.encode(msg),
+        message: encode(msg),
       });
     }
   });
@@ -108,11 +112,16 @@ io.on('connection', function(socket) {
 
   // Lobby / Room events
   socket.on('createRoom', function(data, cb) {
+    console.log((new Date().toISOString()) + ' createRoom event from ' + socket.id);
     var room = createRoom(data && data.name, data && data.capacity || 2, socket.id, data && data.isPublic);
     socket.join('room' + room.id);
     users[socket.id].room = room.id;
     io.emit('roomUpdate', listRooms());
-    if(cb) cb({success:true, room:{id:room.id, name:room.name, players:room.players.slice(), capacity:room.capacity}});
+    console.log((new Date().toISOString()) + ' Room created with ID ' + room.id);
+    if(cb) {
+      console.log((new Date().toISOString()) + ' Calling callback for room creation');
+      cb({success:true, room:{id:room.id, name:room.name, players:room.players.slice(), capacity:room.capacity}});
+    }
   });
 
   socket.on('listRooms', function(cb) {
@@ -120,7 +129,9 @@ io.on('connection', function(socket) {
   });
 
   socket.on('joinRoom', function(roomId, cb) {
+    console.log((new Date().toISOString()) + ' joinRoom event from ' + socket.id + ' for room ' + roomId);
     var result = joinRoomById(roomId, socket);
+    console.log((new Date().toISOString()) + ' joinRoom result:', result);
     if(cb) cb(result);
   });
 
@@ -215,8 +226,12 @@ function checkGameOver(game) {
  */
 function getClientsInRoom(room) {
   var clients = [];
-  for (var id in io.sockets.adapter.rooms[room]) {
-    clients.push(io.sockets.adapter.nsp.connected[id]);
+  var roomSockets = io.sockets.adapter.rooms.get(room);
+  if (roomSockets) {
+    roomSockets.forEach(function(socketId) {
+      var socket = io.sockets.sockets.get(socketId);
+      if (socket) clients.push(socket);
+    });
   }
   return clients;
 }
@@ -247,13 +262,24 @@ function createRoom(name, capacity, hostId, isPublic) {
 }
 
 function joinRoomById(roomId, socket) {
+  console.log((new Date().toISOString()) + ' joinRoomById called for room ' + roomId + ' by socket ' + socket.id);
   var room = rooms[roomId];
-  if(!room) return {success:false, error:'Room not found'};
-  if(room.players.indexOf(socket.id) !== -1) return {success:true, room:room};
-  if(room.players.length >= room.capacity) return {success:false, error:'Room is full'};
+  if(!room) {
+    console.log((new Date().toISOString()) + ' Room ' + roomId + ' not found');
+    return {success:false, error:'Room not found'};
+  }
+  if(room.players.indexOf(socket.id) !== -1) {
+    console.log((new Date().toISOString()) + ' Socket ' + socket.id + ' already in room ' + roomId);
+    return {success:true, room:room};
+  }
+  if(room.players.length >= room.capacity) {
+    console.log((new Date().toISOString()) + ' Room ' + roomId + ' is full');
+    return {success:false, error:'Room is full'};
+  }
   room.players.push(socket.id);
   socket.join('room' + roomId);
   users[socket.id].room = roomId;
+  console.log((new Date().toISOString()) + ' Socket ' + socket.id + ' successfully joined room ' + roomId);
   io.to('room' + roomId).emit('roomUpdate', {room: {id: room.id, name: room.name, players: room.players.slice(), capacity: room.capacity, hostId: room.hostId}});
   io.emit('roomUpdate', listRooms());
 

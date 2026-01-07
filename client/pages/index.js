@@ -7,25 +7,30 @@ export default function Home() {
   const [socketId, setSocketId] = useState(null);
   const [rooms, setRooms] = useState([]);
   const [name, setName] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     const s = io();
+    console.log('Socket instance:', s);
+    console.log('Socket connected:', s.connected);
     setSocket(s);
 
     s.on('connect', () => {
+      console.log('Socket connected! ID:', s.id);
       setSocketId(s.id);
-      setLoading(false);
+    });
+
+    s.on('disconnect', () => {
+      console.log('Socket disconnected');
     });
 
     s.on('roomList', (list) => {
+      console.log('Received roomList:', list);
       setRooms(list);
-      setLoading(false);
     });
 
     s.on('roomUpdate', (data) => {
+      console.log('Received roomUpdate:', data);
       if (Array.isArray(data)) setRooms(data);
       else if (data && data.room) setRooms((prev) => {
         const idx = prev.findIndex(r => r.id === data.room.id);
@@ -37,127 +42,90 @@ export default function Home() {
     });
 
     s.on('join', (gameId) => {
+      console.log('Join event, redirecting to game:', gameId);
       window.location.href = '/game/' + gameId;
     });
 
-    s.emit('listRooms', (list) => setRooms(list));
+    console.log('Emitting listRooms');
+    s.emit('listRooms', (list) => {
+      console.log('listRooms callback received:', list);
+      setRooms(list);
+    });
 
     return () => {
+      console.log('Cleanup: disconnecting socket');
       s.disconnect();
     };
   }, []);
 
   function createRoom() {
-    if (!socket) return;
+    if (!name || name.trim() === '') {
+      alert('Please enter a room name');
+      return;
+    }
+    if (!socket) {
+      alert('Socket not connected. Refreshing...');
+      window.location.reload();
+      return;
+    }
     setCreating(true);
-    setError('');
-    
-    socket.emit('createRoom', { name: name || 'New Room', capacity: 2 }, (res) => {
+    console.log('Creating room with name:', name);
+    socket.emit('createRoom', { name: name, capacity: 2 }, (res) => {
       setCreating(false);
+      console.log('Create room response:', res);
       if (res && res.success) {
         window.location.href = '/room/' + res.room.id;
       } else {
-        setError(res?.error || 'Failed to create room');
+        alert(res?.error || 'Failed to create room');
       }
     });
   }
 
   function joinRoom(id) {
     if (!socket) return;
-    setError('');
     socket.emit('joinRoom', id, (res) => {
       if (res && res.success) {
         window.location.href = '/room/' + id;
       } else {
-        setError(res?.error || 'Failed to join room');
+        alert(res?.error || 'Failed to join room');
       }
     });
   }
 
   return (
-    <>
-      <div className="header">
-        <h1>⚔️ BattleBoard</h1>
-        <div>
-          {socketId && <span style={{ fontSize: '12px', color: '#999' }}>ID: {socketId.slice(0, 6)}</span>}
-        </div>
+    <div className="container">
+      <h1>BattleBoard Lobby</h1>
+
+      <div className="box">
+        <h2>Create Room</h2>
+        <input 
+          value={name} 
+          onChange={(e) => setName(e.target.value)} 
+          placeholder="Enter room name" 
+          onKeyPress={(e) => e.key === 'Enter' && !creating && createRoom()}
+        />
+        <button onClick={createRoom} disabled={creating || !name.trim()}>
+          {creating ? 'Creating...' : 'Create Room'}
+        </button>
       </div>
 
-      <div className="container">
-        <h2>Create or Join a Game</h2>
-
-        <div className="info-box">
-          Welcome to BattleBoard! Create a new room or join an existing one to play battleship with friends.
-        </div>
-
-        {error && <div className="info-box error">{error}</div>}
-
-        <div className="form-group">
-          <div style={{ flex: 1 }}>
-            <label htmlFor="roomName">Room Name</label>
-            <input
-              id="roomName"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g., My Awesome Game"
-              onKeyPress={(e) => e.key === 'Enter' && createRoom()}
-            />
-          </div>
-          <button
-            onClick={createRoom}
-            disabled={creating || !socket}
-            style={{ alignSelf: 'flex-end' }}
-          >
-            {creating ? 'Creating...' : 'Create Room'}
-          </button>
-        </div>
-
-        <p className="help">💡 Tip: Leave the name empty to auto-generate one</p>
-
-        <h2 style={{ marginTop: 32 }}>Available Rooms ({rooms.length})</h2>
-
-        {loading ? (
-          <div className="spinner"></div>
-        ) : rooms.length === 0 ? (
-          <div className="info-box warning">
-            No rooms available. Be the first to create one!
-          </div>
+      <div className="box">
+        <h2>Available Rooms ({rooms.length})</h2>
+        {rooms.length === 0 ? (
+          <p>No rooms available</p>
         ) : (
-          <div className="room-list">
+          <ul>
             {rooms.map((r) => (
-              <div key={r.id} className="room-item">
-                <div className="room-item-info">
-                  <h3>{r.name}</h3>
-                  <p>
-                    👥 Players: <strong>{r.playerCount || 0}/{r.capacity}</strong>
-                  </p>
-                </div>
-                <div className="room-item-actions">
-                  <Link href={`/room/${r.id}`}>
-                    <button className="btn-secondary">View</button>
-                  </Link>
-                  <button
-                    onClick={() => joinRoom(r.id)}
-                    disabled={r.playerCount >= r.capacity}
-                  >
-                    {r.playerCount >= r.capacity ? 'Full' : 'Join'}
-                  </button>
-                </div>
-              </div>
+              <li key={r.id}>
+                <strong>{r.name}</strong> — {r.playerCount}/{r.capacity} players
+                <button onClick={() => joinRoom(r.id)}>Join</button>
+              </li>
             ))}
-          </div>
-        )}
-
-        <div className="info-box" style={{ marginTop: 32 }}>
-          <strong>How to play:</strong>
-          <ul style={{ marginTop: 8, paddingLeft: 16 }}>
-            <li>Create a room or join an existing one</li>
-            <li>Wait for all players to join</li>
-            <li>The host can start the game once everyone is ready</li>
-            <li>Place your ships strategically and sink your opponent!</li>
           </ul>
-        </div>
+        )}
       </div>
-    </>
+
+      <p className="help">Tip: Create a room and invite a friend to play!</p>
+    </div>
   );
 }

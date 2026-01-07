@@ -6,7 +6,25 @@ export default function getSocket() {
   if (!socket) {
     var host = window.location.hostname;
     var url = (host ? ('http://' + host + ':8900') : 'http://localhost:8900');
-    socket = ioc(url);
+    console.log('Connecting to socket server at:', url);
+    socket = ioc(url, {
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      reconnectionAttempts: 5
+    });
+    
+    socket.on('connect', () => {
+      console.log('Socket.io connected with ID:', socket.id);
+    });
+    
+    socket.on('connect_error', (error) => {
+      console.error('Socket.io connection error:', error);
+    });
+    
+    socket.on('disconnect', () => {
+      console.log('Socket.io disconnected');
+    });
   }
   return socket;
 } 
