@@ -2,13 +2,6 @@
 
 **BattleBoard** is a realtime, multiplayer Battleship-style game for two players. Players place ships on a grid, take turns firing shots to sink the opponent’s fleet, and can chat during the match. The project includes a Node.js server (game logic + socket server) and a Next.js React client for the browser UI.
 
-## 🖼 Screenshot
-
-![BattleBoard — Game screen](/public/css/Screenshot%202026-01-08%20052507.png)
-
-*Caption: In-game view showing both player boards, chat and status.*
-
----
 
 ## 🚀 Features
 
@@ -124,14 +117,6 @@ Open the client at `http://localhost:3000` and ensure the server is running on p
 ## 📄 License
 
 See the `LICENSE` file in the repository.
-
----
-
-## 🖼 Screenshots
-
-![BattleBoard — Game screen](/public/css/Screenshot%202026-01-08%20052507.png)
-
-*Caption: In-game view showing both player boards, chat and status.*
 
 ---
 
